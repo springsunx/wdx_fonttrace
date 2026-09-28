@@ -1,0 +1,14 @@
+*.o
+*.ppu
+*.a
+
+# Build output
+*.wdx
+*.wdx64
+build64/
+out/
+dist/
+.vs/
+cmake-build-*/
+CMakeUserPresets.json
+*.user

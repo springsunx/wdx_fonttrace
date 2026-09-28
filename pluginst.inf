@@ -1,0 +1,6 @@
+[plugininstall]
+description=Fast font identity lookup
+version=1.0.0
+type=wdx
+file=fonttrace.wdx
+defaultdir=wdx_fonttrace
