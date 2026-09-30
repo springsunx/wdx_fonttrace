@@ -122,7 +122,7 @@ int wmain(int argc, wchar_t** argv) {
         return 1;
     }
 
-    std::array<std::string, 4> field_names;
+    std::array<std::string, 5> field_names;
     for (int field = 0; field < static_cast<int>(field_names.size()); ++field) {
         std::array<char, 128> name{};
         std::array<char, 16> units{};

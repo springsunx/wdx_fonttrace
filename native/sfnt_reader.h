@@ -13,6 +13,7 @@ enum class NameField : std::uint8_t {
     style,
     full_name,
     postscript_name,
+    version,
 };
 
 class SfntReader {

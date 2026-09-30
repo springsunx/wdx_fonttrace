@@ -37,19 +37,19 @@ jobs:
       - name: Package plugin
         shell: pwsh
         run: |
-          $package = "dist/wdx_fonttrace-1.0.0"
+          $package = "dist/wdx_fonttrace-1.1.0"
           New-Item -ItemType Directory -Path $package -Force | Out-Null
           Copy-Item "out/build-x86/Release/fonttrace.wdx" $package
           Copy-Item "out/build-x64/Release/fonttrace.wdx64" $package
           Copy-Item "pluginst.inf", "README.md", "CHANGELOG.md", `
             "LICENSE.txt" $package
           Compress-Archive -Path "$package/*" `
-            -DestinationPath "dist/wdx_fonttrace-1.0.0.zip" `
+            -DestinationPath "dist/wdx_fonttrace-1.1.0.zip" `
             -CompressionLevel Optimal
 
       - name: Upload installable plugin
         uses: actions/upload-artifact@v7
         with:
-          name: wdx_fonttrace-1.0.0
-          path: dist/wdx_fonttrace-1.0.0.zip
+          name: wdx_fonttrace-1.1.0
+          path: dist/wdx_fonttrace-1.1.0.zip
           if-no-files-found: error

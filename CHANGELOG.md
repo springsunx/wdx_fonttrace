@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0 - 2026-09-30
+
+- Added an on-demand `Version` field sourced from OpenType Name ID 5.
+- Release each font mapping before returning from WDX calls so files remain
+  immediately renameable and deletable while the plugin stays loaded.
+- Prefer the current Windows language, related language variants, and then
+  English before unrelated localized names.
+
 ## 1.0.0 - 2026-09-28
 
 - Reimplemented the four font-name fields in native C++20.

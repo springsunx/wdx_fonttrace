@@ -91,6 +91,8 @@ constexpr std::size_t kMaxNameId = 17;
         return name_id == 4;
     case NameField::postscript_name:
         return name_id == 6;
+    case NameField::version:
+        return name_id == 5;
     }
     return false;
 }
@@ -233,10 +235,33 @@ struct NameRecord {
 
 struct DecodedName {
     std::wstring value;
-    bool preferred{};
+    int language_priority{};
     bool unicode{};
     bool codepage{};
 };
+
+[[nodiscard]] int windows_language_priority(
+    std::uint16_t language,
+    std::uint16_t preferred_language) noexcept {
+    constexpr std::uint16_t kPrimaryLanguageMask = 0x03FF;
+    constexpr std::uint16_t kEnglishPrimaryLanguage = 0x0009;
+    constexpr std::uint16_t kEnglishUnitedStates = 0x0409;
+
+    if (language == preferred_language) {
+        return 5;
+    }
+    if ((language & kPrimaryLanguageMask) ==
+        (preferred_language & kPrimaryLanguageMask)) {
+        return 4;
+    }
+    if (language == kEnglishUnitedStates) {
+        return 3;
+    }
+    if ((language & kPrimaryLanguageMask) == kEnglishPrimaryLanguage) {
+        return 2;
+    }
+    return 1;
+}
 
 [[nodiscard]] std::optional<DecodedName> decode_record(
     std::span<const std::byte> table,
@@ -255,8 +280,6 @@ struct DecodedName {
     }
 
     DecodedName result;
-    result.preferred = record.platform == kPlatformWindows &&
-                       record.language == preferred_language;
 
     if (record.platform == kPlatformMac) {
         if (record.encoding != kEncodingMacRoman) {
@@ -273,6 +296,9 @@ struct DecodedName {
     if (record.platform != kPlatformWindows) {
         return std::nullopt;
     }
+
+    result.language_priority = windows_language_priority(
+        record.language, preferred_language);
 
     if (is_windows_codepage_encoding(record.encoding)) {
         std::span<const std::byte> encoded = *raw;
@@ -386,10 +412,13 @@ std::optional<std::wstring> SfntReader::read_name(
         return std::nullopt;
     }
 
-    std::array<bool, kMaxNameId + 1> has_preferred{};
-    std::array<bool, kMaxNameId + 1> has_unicode{};
+    std::array<int, kMaxNameId + 1> best_language_priority{};
+    best_language_priority.fill(-1);
+    std::array<bool, kMaxNameId + 1> best_unicode{};
+    std::array<std::optional<std::wstring>, kMaxNameId + 1> best_value{};
+    std::array<int, kMaxNameId + 1> codepage_language_priority{};
+    codepage_language_priority.fill(-1);
     std::array<std::optional<std::wstring>, kMaxNameId + 1> codepage_fallback{};
-    std::optional<std::wstring> selected;
 
     for (std::size_t i = 0; i < *count; ++i) {
         const auto record = read_record(
@@ -405,89 +434,50 @@ std::optional<std::wstring> SfntReader::read_name(
             continue;
         }
 
-        if (decoded->codepage && is_clean_cjk(decoded->value)) {
-            codepage_fallback[record->name_id] = decoded->value;
+        const auto id = static_cast<std::size_t>(record->name_id);
+        if (decoded->codepage && is_clean_cjk(decoded->value) &&
+            decoded->language_priority > codepage_language_priority[id]) {
+            codepage_fallback[id] = decoded->value;
+            codepage_language_priority[id] = decoded->language_priority;
         }
 
-        const auto should_update = [&](std::size_t id) noexcept {
-            return (!has_unicode[id] || decoded->unicode) &&
-                   (!has_preferred[id] || decoded->preferred);
-        };
-
-        switch (record->name_id) {
-        case 1:
-            if (should_update(1)) {
-                selected = decoded->value;
-                has_preferred[1] = decoded->preferred;
-                has_unicode[1] = decoded->unicode;
-            }
-            break;
-        case 2:
-            if (should_update(2)) {
-                selected = decoded->value;
-                has_preferred[2] = decoded->preferred;
-                has_unicode[2] = decoded->unicode;
-            }
-            break;
-        case 4:
-            if (should_update(4)) {
-                selected = decoded->value;
-                has_preferred[4] = decoded->preferred;
-                has_unicode[4] = decoded->unicode;
-            }
-            break;
-        case 6:
-            if (should_update(6)) {
-                selected = decoded->value;
-                has_preferred[6] = decoded->preferred;
-                has_unicode[6] = decoded->unicode;
-            }
-            break;
-        case 16:
-            if (should_update(16)) {
-                selected = decoded->value;
-                has_preferred[16] = decoded->preferred;
-                has_preferred[1] = decoded->preferred;
-                has_unicode[16] = decoded->unicode;
-                if (decoded->unicode) {
-                    has_unicode[1] = true;
-                }
-            }
-            break;
-        case 17:
-            if (should_update(17)) {
-                selected = decoded->value;
-                has_preferred[17] = decoded->preferred;
-                has_preferred[2] = decoded->preferred;
-                has_unicode[17] = decoded->unicode;
-                if (decoded->unicode) {
-                    has_unicode[2] = true;
-                }
-            }
-            break;
-        default:
-            break;
+        const bool better_language =
+            decoded->language_priority > best_language_priority[id];
+        const bool better_encoding =
+            decoded->language_priority == best_language_priority[id] &&
+            decoded->unicode && !best_unicode[id];
+        if (!best_value[id] || better_language || better_encoding) {
+            best_value[id] = decoded->value;
+            best_language_priority[id] = decoded->language_priority;
+            best_unicode[id] = decoded->unicode;
         }
     }
 
-    std::size_t fallback_id = 0;
+    std::size_t selected_id = 0;
     switch (field) {
     case NameField::family:
-        fallback_id = 1;
+        selected_id = best_value[16] ? 16 : 1;
         break;
     case NameField::style:
-        fallback_id = 2;
+        selected_id = best_value[17] ? 17 : 2;
         break;
     case NameField::full_name:
-        fallback_id = 4;
+        selected_id = 4;
         break;
     case NameField::postscript_name:
-        fallback_id = 6;
+        selected_id = 6;
+        break;
+    case NameField::version:
+        selected_id = 5;
         break;
     }
 
-    const auto& fallback = codepage_fallback[fallback_id];
-    if (fallback && is_clean_cjk(*fallback) &&
+    auto selected = best_value[selected_id];
+    const auto& fallback = codepage_fallback[selected_id];
+    if (fallback &&
+        codepage_language_priority[selected_id] >=
+            best_language_priority[selected_id] &&
+        is_clean_cjk(*fallback) &&
         selected && fallback->size() <= selected->size()) {
         selected = *fallback;
     }

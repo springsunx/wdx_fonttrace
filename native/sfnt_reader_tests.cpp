@@ -152,6 +152,28 @@ void test_clean_gb2312_repairs_bad_unicode_name() {
     assert(reader.read_name(fonttrace::NameField::family, 0x0804) == L"文鼎粗黑简");
 }
 
+void test_version_name() {
+    const auto font = make_font({
+        {3, 1, 0x0409, 5, utf16_be(L"Version 1.234; Build 20260929")},
+    });
+    const fonttrace::SfntReader reader(font);
+    assert(reader.read_name(fonttrace::NameField::version, 0x0804) ==
+           L"Version 1.234; Build 20260929");
+}
+
+void test_english_fallback_beats_unrelated_localization() {
+    const auto font = make_font({
+        {3, 1, 0x0409, 1, utf16_be(L"Malgun Gothic")},
+        {3, 1, 0x0412, 1, utf16_be(L"맑은 고딕")},
+        {3, 5, 0x0412, 1, encode_codepage(L"맑은 고딕", 949)},
+    });
+    const fonttrace::SfntReader reader(font);
+    assert(reader.read_name(fonttrace::NameField::family, 0x0804) ==
+           L"Malgun Gothic");
+    assert(reader.read_name(fonttrace::NameField::family, 0x0412) ==
+           L"맑은 고딕");
+}
+
 }  // namespace
 
 int wmain() {
@@ -159,6 +181,8 @@ int wmain() {
     test_typographic_family_overrides_legacy_family();
     test_irrelevant_broken_record_is_not_decoded();
     test_clean_gb2312_repairs_bad_unicode_name();
+    test_version_name();
+    test_english_fallback_beats_unrelated_localization();
     std::wcout << L"sfnt_reader_tests: all tests passed\n";
     return 0;
 }

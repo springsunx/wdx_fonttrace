@@ -22,11 +22,12 @@ constexpr int kNoSuchField = -1;
 constexpr int kFileError = -2;
 constexpr int kFieldEmpty = -3;
 
-constexpr std::array<const char*, 4> kFieldNames{
+constexpr std::array<const char*, 5> kFieldNames{
     "Family",
     "Style",
     "Full Name",
     "PostScript Name",
+    "Version",
 };
 
 class WinHandle {
@@ -121,11 +122,9 @@ private:
 
 struct ThreadCache {
     explicit ThreadCache(const wchar_t* file_name)
-        : path(file_name), file(file_name), reader(file.bytes()) {}
+        : path(file_name) {}
 
     std::wstring path;
-    MappedFile file;
-    fonttrace::SfntReader reader;
     std::array<bool, kFieldNames.size()> parsed{};
     std::array<std::optional<std::wstring>, kFieldNames.size()> values{};
 };
@@ -168,13 +167,15 @@ thread_local std::unique_ptr<ThreadCache> g_cache;
     if (!g_cache || g_cache->path != file_name) {
         g_cache = std::make_unique<ThreadCache>(file_name);
     }
-    if (!g_cache->file.valid() || !g_cache->reader.valid()) {
-        return kFileError;
-    }
 
     const auto index = static_cast<std::size_t>(field_index);
     if (!g_cache->parsed[index]) {
-        g_cache->values[index] = g_cache->reader.read_name(
+        const MappedFile file(file_name);
+        const fonttrace::SfntReader reader(file.bytes());
+        if (!file.valid() || !reader.valid()) {
+            return kFileError;
+        }
+        g_cache->values[index] = reader.read_name(
             to_name_field(field_index), GetUserDefaultLangID());
         g_cache->parsed[index] = true;
     }

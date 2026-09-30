@@ -16,10 +16,11 @@
 | Style | Name ID 17，回退到 ID 2 | 优先排印子族名 |
 | Full Name | Name ID 4 | 完整字体名 |
 | PostScript Name | Name ID 6 | 原样返回，不用其他名称伪造 |
+| Version | Name ID 5 | 字体内嵌的版本字符串 |
 
 WDX 只在 Total Commander 请求某个字段时解析该字段。配置一个
-`PostScript Name` 列不会顺带解析另外三个字段。同一线程连续读取同一文件时，
-插件会复用文件映射和已经取得的字段值。
+`PostScript Name` 列不会顺带解析其他字段。插件只缓存已经取得的字段值；
+文件映射会在每次 WDX 调用返回前解除，不会持续占用字体文件或阻止重命名和删除。
 
 ## 中文字体兼容
 
